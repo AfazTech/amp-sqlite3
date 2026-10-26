@@ -569,6 +569,10 @@ final class WorkerProcess
                     if (SqlStatementBoundary::startsWithKeyword($statementSql, 'BEGIN', 'COMMIT', 'END', 'ROLLBACK', 'SAVEPOINT', 'RELEASE')) {
                         throw new \RuntimeException('SQL scripts cannot contain transaction-control statements');
                     }
+                    // Mirror prepareSingleStatement so scripts cannot execute RETURNING DML twice
+                    if (!$statement->readOnly() && self::isDml($statement) && $this->producesRows($statementSql)) {
+                        throw new \RuntimeException('Row-producing DML statements are not supported by the PHP SQLite3 extension');
+                    }
                     $result = $statement->execute();
                     if ($result === false) {
                         throw new \RuntimeException('Could not execute SQLite statement');

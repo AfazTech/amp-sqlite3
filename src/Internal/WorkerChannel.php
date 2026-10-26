@@ -17,6 +17,7 @@ use Amp\ForbidCloning;
 use Amp\ForbidSerialization;
 use Amp\Parallel\Context\Context;
 use Amp\Sync\LocalMutex;
+use Amp\TimeoutCancellation;
 use Fabpot\Amp\Sqlite\SqliteException;
 use Fabpot\Amp\Sqlite\SqliteQueryError;
 
@@ -29,6 +30,8 @@ final class WorkerChannel
 {
     use ForbidCloning;
     use ForbidSerialization;
+
+    private const SHUTDOWN_TIMEOUT = 5;
 
     private readonly LocalMutex $mutex;
     private int $nextRequestId = 1;
@@ -104,7 +107,7 @@ final class WorkerChannel
 
             $this->context->send(['id' => $this->nextRequestId++, 'operation' => 'close']);
             $this->context->receive();
-            $this->context->join();
+            $this->context->join(new TimeoutCancellation(self::SHUTDOWN_TIMEOUT));
         } catch (\Throwable $exception) {
             throw new WorkerFailure('The SQLite child process stopped unexpectedly', previous: $exception);
         } finally {
@@ -122,7 +125,7 @@ final class WorkerChannel
 
         $this->context->close();
         try {
-            $this->context->join();
+            $this->context->join(new TimeoutCancellation(self::SHUTDOWN_TIMEOUT));
         } catch (\Throwable) {
         }
     }
